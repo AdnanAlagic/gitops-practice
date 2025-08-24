@@ -1,0 +1,24 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kimai
+  namespace: argocd
+  labels:
+    app: kimai
+spec:
+  project: default
+  source:
+    repoURL: 'https://github.com/AdnanAlagic/gitops-practice'
+    path: kimai
+    targetRevision: HEAD
+  destination:
+    server: 'https://kubernetes.default.svc'
+    namespace: kimai
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+  revisionHistoryLimit: 3

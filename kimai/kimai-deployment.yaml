@@ -1,0 +1,34 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kimai
+  namespace: kimai
+  labels:
+    app: kimai
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kimai
+  template:
+    metadata:
+      labels:
+        app: kimai
+    spec:
+      containers:
+        - name: kimai
+          image: kimai/kimai2:apache
+          ports:
+            - containerPort: 8001
+              name: http
+          env:
+            - name: DATABASE_URL
+              value: "mysql://kimai:kimaipassword@mysql-service:3306/kimai?charset=utf8mb4&serverVersion=8.0.32"
+            - name: APP_ENV
+              value: "prod"
+            - name: APP_SECRET
+              value: "change_this_to_something_unique"
+            - name: TRUSTED_HOSTS
+              value: "localhost,127.0.0.1,nginx-service.nginx.svc.cluster.local"
+            - name: CORS_ALLOW_ORIGIN
+              value: "^https?://localhost(:[0-9]+)?$"
