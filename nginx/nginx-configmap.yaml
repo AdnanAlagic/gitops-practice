@@ -65,6 +65,7 @@ data:
                 # Remove /jenkins from the path when forwarding
                 rewrite ^/jenkins/(.*)$ /$1 break;
                 proxy_pass http://jenkins;
+    
                 proxy_set_header Host $host;
                 proxy_set_header X-Real-IP $remote_addr;
                 proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -74,7 +75,8 @@ data:
     
                 # Jenkins specific headers for reverse proxy
                 proxy_set_header X-Forwarded-Prefix /jenkins;
-                proxy_redirect http:// $scheme://;
+                proxy_redirect ~^(/.*)$ /jenkins$1;
+                proxy_cookie_path / /jenkins/;
     
                 # WebSocket support
                 proxy_http_version 1.1;
