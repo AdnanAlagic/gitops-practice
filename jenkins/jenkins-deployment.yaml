@@ -29,6 +29,16 @@ spec:
           env:
             - name: JAVA_OPTS
               value: "-Djenkins.install.runSetupWizard=false"
+            - name: JENKINS_ADMIN_ID
+              valueFrom:
+                secretKeyRef:
+                  name: jenkins-admin
+                  key: username
+            - name: JENKINS_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: jenkins-admin
+                  key: password
           volumeMounts:
             - name: jenkins-storage
               mountPath: /var/jenkins_home
