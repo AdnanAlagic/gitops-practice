@@ -63,7 +63,8 @@ data:
             # Jenkins at /jenkins/
             location /jenkins/ {
                 # Remove /jenkins from the path when forwarding
-                proxy_pass http://jenkins/jenkins;
+                rewrite ^/jenkins/(.*)$ /$1 break;
+                proxy_pass http://jenkins;
     
                 proxy_set_header Host $host;
                 proxy_set_header X-Real-IP $remote_addr;
