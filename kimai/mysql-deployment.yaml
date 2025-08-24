@@ -23,19 +23,13 @@ spec:
               name: mysql
           env:
             - name: MYSQL_ROOT_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: mysql-secret
-                  key: mysql-root-password
+              value: "rootpassword"
             - name: MYSQL_DATABASE
               value: "kimai"
             - name: MYSQL_USER
               value: "kimai"
             - name: MYSQL_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: mysql-secret
-                  key: mysql-password
+              value: "kimaipassword"
           volumeMounts:
             - name: mysql-storage
               mountPath: /var/lib/mysql
