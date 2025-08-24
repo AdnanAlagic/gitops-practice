@@ -40,17 +40,17 @@ data:
                     <h1>DevOps Services Dashboard</h1>
                     <div style="display: grid; gap: 20px; max-width: 600px;">
                         <div style="border: 1px solid #ddd; padding: 20px; border-radius: 8px;">
-                            <h3>🔧 Jenkins CI/CD</h3>
+                            <h3>Jenkins CI/CD</h3>
                             <p>Continuous Integration and Deployment</p>
                             <a href="/jenkins/" style="background: #326ce5; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px;">Open Jenkins</a>
                         </div>
                         <div style="border: 1px solid #ddd; padding: 20px; border-radius: 8px;">
-                            <h3>⏰ Kimai Time Tracking</h3>
+                            <h3>Kimai Time Tracking</h3>
                             <p>Project time tracking and management</p>
                             <a href="/kimai/" style="background: #28a745; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px;">Open Kimai</a>
                         </div>
                         <div style="border: 1px solid #ddd; padding: 20px; border-radius: 8px;">
-                            <h3>🚀 ArgoCD GitOps</h3>
+                            <h3>ArgoCD GitOps</h3>
                             <p>Kubernetes GitOps deployment</p>
                             <a href="/argocd/" style="background: #ff6b35; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px;">Open ArgoCD</a>
                         </div>
@@ -62,14 +62,21 @@ data:
     
             # Jenkins at /jenkins/
             location /jenkins/ {
-                proxy_pass http://jenkins/;
+                # Remove /jenkins from the path when forwarding
+                rewrite ^/jenkins/(.*)$ /$1 break;
+                proxy_pass http://jenkins;
                 proxy_set_header Host $host;
                 proxy_set_header X-Real-IP $remote_addr;
                 proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
                 proxy_set_header X-Forwarded-Proto $scheme;
                 proxy_set_header X-Forwarded-Port $server_port;
                 proxy_set_header X-Forwarded-Host $server_name;
-   
+    
+                # Jenkins specific headers for reverse proxy
+                proxy_set_header X-Forwarded-Prefix /jenkins;
+                proxy_redirect http:// $scheme://;
+    
+                # WebSocket support
                 proxy_http_version 1.1;
                 proxy_set_header Upgrade $http_upgrade;
                 proxy_set_header Connection "upgrade";
@@ -80,9 +87,15 @@ data:
                 client_max_body_size 50M;
             }
     
+            # Handle Jenkins without trailing slash
+            location /jenkins {
+                return 301 /jenkins/;
+            }
+    
             # Kimai at /kimai/
             location /kimai/ {
-                proxy_pass http://kimai/;
+                rewrite ^/kimai/(.*)$ /$1 break;
+                proxy_pass http://kimai;
                 proxy_set_header Host $host;
                 proxy_set_header X-Real-IP $remote_addr;
                 proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -92,9 +105,15 @@ data:
                 proxy_read_timeout 30s;
             }
     
+            # Handle Kimai without trailing slash
+            location /kimai {
+                return 301 /kimai/;
+            }
+    
             # ArgoCD at /argocd/
             location /argocd/ {
-                proxy_pass http://argocd/;
+                rewrite ^/argocd/(.*)$ /$1 break;
+                proxy_pass http://argocd;
                 proxy_set_header Host $host;
                 proxy_set_header X-Real-IP $remote_addr;
                 proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -103,6 +122,11 @@ data:
                 proxy_http_version 1.1;
                 proxy_set_header Upgrade $http_upgrade;
                 proxy_set_header Connection "upgrade";
+            }
+    
+            # Handle ArgoCD without trailing slash
+            location /argocd {
+                return 301 /argocd/;
             }
         }
     }
