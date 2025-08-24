@@ -9,7 +9,3 @@ spec:
   resources:
     requests:
       storage: 5Gi
-  storageClassName: manual
-  selector:
-    matchLabels:
-      app: mysql
