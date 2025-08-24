@@ -13,3 +13,4 @@ spec:
   storageClassName: manual
   hostPath:
     path: /data/mysql
+    type: DirectoryOrCreate
