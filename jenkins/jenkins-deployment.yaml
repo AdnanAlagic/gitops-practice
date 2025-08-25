@@ -29,8 +29,6 @@ spec:
           env:
             - name: JAVA_OPTS
               value: "-Djenkins.install.runSetupWizard=false"
-            - name: JENKINS_OPTS
-              value: "--prefix=/jenkins"
             - name: JENKINS_ADMIN_ID
               valueFrom:
                 secretKeyRef:
