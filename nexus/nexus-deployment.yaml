@@ -1,0 +1,38 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nexus
+  namespace: nexus
+  labels:
+    app: nexus
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nexus
+  template:
+    metadata:
+      labels:
+        app: nexus
+    spec:
+      securityContext:
+        fsGroup: 997
+        runAsUser: 997
+      containers:
+        - name: nexus
+          image: sonatype/nexus3:3.42.0
+          ports:
+            - containerPort: 8081
+              name: http
+            - containerPort: 8082
+              name: docker-registry
+          env:
+            - name: INSTALL4J_ADD_VM_PARAMS
+              value: "-Xms1g -Xmx2g -XX:MaxDirectMemorySize=2g"
+          volumeMounts:
+            - name: nexus-storage
+              mountPath: /nexus-data
+      volumes:
+        - name: nexus-storage
+          persistentVolumeClaim:
+            claimName: nexus-pvc
