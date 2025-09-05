@@ -1,0 +1,146 @@
+pipeline {
+    agent any
+
+    tools {
+        maven 'Maven-3.8'
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                script {
+                    deleteDir()
+                    git branch: 'master',
+                        url: 'https://github.com/AdnanAlagic/unit-testing-java.git'
+                    echo 'Repository checked out successfully'
+                }
+            }
+        }
+
+        stage('Maven Clean Install') {
+            steps {
+                echo 'Running mvn clean install...'
+                sh 'mvn clean install -DskipTests'
+                echo 'Maven clean install completed'
+            }
+        }
+
+        stage('Maven Test') {
+            steps {
+                echo 'Running mvn test...'
+                script {
+                    def testResult = sh(
+                        script: 'mvn test',
+                        returnStatus: true
+                    )
+
+                    if (testResult == 0) {
+                        echo 'All tests PASSED!'
+                    } else {
+                        echo 'Some tests FAILED!'
+                        currentBuild.result = 'UNSTABLE'
+                    }
+                }
+            }
+            post {
+                always {
+                    echo 'Publishing test results...'
+
+                    publishTestResults(
+                        testResultsPattern: 'target/surefire-reports/*.xml',
+                        allowEmptyResults: true
+                    )
+
+                    script {
+                        def testResultsFile = 'target/surefire-reports/TEST-*.xml'
+
+                        if (fileExists('target/surefire-reports/')) {
+                            echo 'TEST RESULTS SUMMARY:'
+                            sh '''
+                                echo "==================================="
+                                echo "DETAILED TEST RESULTS:"
+                                echo "==================================="
+
+                                if [ -f target/surefire-reports/*.xml ]; then
+                                    TOTAL_TESTS=$(grep -h "tests=" target/surefire-reports/TEST-*.xml | sed 's/.*tests="\\([0-9]*\\)".*/\\1/' | awk '{sum+=$1} END {print sum}')
+
+                                    FAILURES=$(grep -h "failures=" target/surefire-reports/TEST-*.xml | sed 's/.*failures="\\([0-9]*\\)".*/\\1/' | awk '{sum+=$1} END {print sum}')
+
+                                    ERRORS=$(grep -h "errors=" target/surefire-reports/TEST-*.xml | sed 's/.*errors="\\([0-9]*\\)".*/\\1/' | awk '{sum+=$1} END {print sum}')
+
+                                    SKIPPED=$(grep -h "skipped=" target/surefire-reports/TEST-*.xml | sed 's/.*skipped="\\([0-9]*\\)".*/\\1/' | awk '{sum+=$1} END {print sum}')
+
+                                    PASSED=$((TOTAL_TESTS - FAILURES - ERRORS - SKIPPED))
+
+                                    echo "Total Tests: $TOTAL_TESTS"
+                                    echo "Passed: $PASSED"
+                                    echo "Failed: $FAILURES"
+                                    echo "Errors: $ERRORS"
+                                    echo "Skipped: $SKIPPED"
+                                    echo "==================================="
+
+                                    if [ $FAILURES -gt 0 ] || [ $ERRORS -gt 0 ]; then
+                                        echo "FAILED TESTS DETAILS:"
+                                        echo "==================================="
+                                        grep -A 5 -B 2 "FAILURE\\|ERROR" target/surefire-reports/*.txt || echo "Check test reports for details"
+                                        echo "==================================="
+                                    else
+                                        echo "ALL TESTS PASSED SUCCESSFULLY!"
+                                    fi
+                                else
+                                    echo "No test result files found"
+                                fi
+                            '''
+                        } else {
+                            echo 'No test results directory found'
+                        }
+                    }
+                }
+                success {
+                    echo 'Tests completed successfully!'
+                }
+                failure {
+                    echo 'Tests failed with errors!'
+                }
+                unstable {
+                    echo 'Tests completed but some failed!'
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            echo 'Cleaning workspace...'
+            cleanWs()
+        }
+        success {
+            echo '''
+            ================================
+            PIPELINE COMPLETED SUCCESSFULLY!
+            ================================
+            mvn clean install: PASSED
+            mvn test: PASSED
+            ================================
+            '''
+        }
+        failure {
+            echo '''
+            ================================
+            PIPELINE FAILED!
+            ================================
+            Check the logs above for details
+            ================================
+            '''
+        }
+        unstable {
+            echo '''
+            ================================
+            PIPELINE UNSTABLE!
+            ================================
+            Some tests failed - check results
+            ================================
+            '''
+        }
+    }
+}
