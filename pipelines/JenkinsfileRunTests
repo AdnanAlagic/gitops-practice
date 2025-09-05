@@ -53,7 +53,7 @@ pipeline {
                 always {
                     echo 'Publishing test results...'
 
-                    publishTestResults(
+                    junit(
                         testResultsPattern: 'target/surefire-reports/*.xml',
                         allowEmptyResults: true
                     )
@@ -121,6 +121,7 @@ pipeline {
     post {
         always {
             echo 'Cleaning workspace...'
+            deleteDir()
         }
         success {
             echo '''
