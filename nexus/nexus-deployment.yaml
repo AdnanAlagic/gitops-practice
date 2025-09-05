@@ -16,8 +16,8 @@ spec:
         app: nexus
     spec:
       securityContext:
-        fsGroup: 997
-        runAsUser: 997
+        fsGroup: 200
+        runAsUser: 200
       containers:
         - name: nexus
           image: sonatype/nexus3:3.83.1
