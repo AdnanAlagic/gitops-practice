@@ -15,24 +15,17 @@ spec:
       labels:
         app: nexus
     spec:
-      initContainers:
-        - name: volume-permissions
-          image: busybox:1.35
-          command: ['sh', '-c', 'chown -R 200:200 /nexus-data && chmod -R 755 /nexus-data']
-          volumeMounts:
-            - name: nexus-storage
-              mountPath: /nexus-data
-          securityContext:
-            runAsUser: 0
       securityContext:
         fsGroup: 200
         runAsUser: 200
       containers:
         - name: nexus
-          image: sonatype/nexus3:3.68.1
+          image: sonatype/nexus3:3.83.1
           ports:
             - containerPort: 8081
               name: http
+            - containerPort: 8082
+              name: docker-registry
           env:
             - name: INSTALL4J_ADD_VM_PARAMS
               value: "-Xms1g -Xmx2g -XX:MaxDirectMemorySize=2g"
