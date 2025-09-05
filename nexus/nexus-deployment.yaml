@@ -20,7 +20,7 @@ spec:
         runAsUser: 997
       containers:
         - name: nexus
-          image: sonatype/nexus
+          image: sonatype/nexus:3.83.2
           ports:
             - containerPort: 8081
               name: http
