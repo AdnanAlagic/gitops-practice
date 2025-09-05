@@ -2,6 +2,7 @@ pipeline {
     agent any
 
     tools {
+        jdk 'Java-11'
         maven 'Maven-3.8'
     }
 
@@ -20,7 +21,13 @@ pipeline {
         stage('Maven Clean Install') {
             steps {
                 echo 'Running mvn clean install...'
-                sh 'mvn clean install -DskipTests'
+                sh '''
+                    echo "Java version:"
+                    java -version
+                    echo "Maven version:"
+                    mvn -version
+                    mvn clean install -DskipTests -Dmaven.compiler.source=11 -Dmaven.compiler.target=11
+                '''
                 echo 'Maven clean install completed'
             }
         }
@@ -30,7 +37,7 @@ pipeline {
                 echo 'Running mvn test...'
                 script {
                     def testResult = sh(
-                        script: 'mvn test',
+                        script: 'mvn test -Dmaven.compiler.source=11 -Dmaven.compiler.target=11',
                         returnStatus: true
                     )
 
@@ -52,8 +59,6 @@ pipeline {
                     )
 
                     script {
-                        def testResultsFile = 'target/surefire-reports/TEST-*.xml'
-
                         if (fileExists('target/surefire-reports/')) {
                             echo 'TEST RESULTS SUMMARY:'
                             sh '''
@@ -61,14 +66,14 @@ pipeline {
                                 echo "DETAILED TEST RESULTS:"
                                 echo "==================================="
 
-                                if [ -f target/surefire-reports/*.xml ]; then
-                                    TOTAL_TESTS=$(grep -h "tests=" target/surefire-reports/TEST-*.xml | sed 's/.*tests="\\([0-9]*\\)".*/\\1/' | awk '{sum+=$1} END {print sum}')
+                                if ls target/surefire-reports/TEST-*.xml 1> /dev/null 2>&1; then
+                                    TOTAL_TESTS=$(grep -h "tests=" target/surefire-reports/TEST-*.xml | sed 's/.*tests="\\([0-9]*\\)".*/\\1/' | awk '{sum+=$1} END {print sum+0}')
 
-                                    FAILURES=$(grep -h "failures=" target/surefire-reports/TEST-*.xml | sed 's/.*failures="\\([0-9]*\\)".*/\\1/' | awk '{sum+=$1} END {print sum}')
+                                    FAILURES=$(grep -h "failures=" target/surefire-reports/TEST-*.xml | sed 's/.*failures="\\([0-9]*\\)".*/\\1/' | awk '{sum+=$1} END {print sum+0}')
 
-                                    ERRORS=$(grep -h "errors=" target/surefire-reports/TEST-*.xml | sed 's/.*errors="\\([0-9]*\\)".*/\\1/' | awk '{sum+=$1} END {print sum}')
+                                    ERRORS=$(grep -h "errors=" target/surefire-reports/TEST-*.xml | sed 's/.*errors="\\([0-9]*\\)".*/\\1/' | awk '{sum+=$1} END {print sum+0}')
 
-                                    SKIPPED=$(grep -h "skipped=" target/surefire-reports/TEST-*.xml | sed 's/.*skipped="\\([0-9]*\\)".*/\\1/' | awk '{sum+=$1} END {print sum}')
+                                    SKIPPED=$(grep -h "skipped=" target/surefire-reports/TEST-*.xml | sed 's/.*skipped="\\([0-9]*\\)".*/\\1/' | awk '{sum+=$1} END {print sum+0}')
 
                                     PASSED=$((TOTAL_TESTS - FAILURES - ERRORS - SKIPPED))
 
@@ -82,7 +87,11 @@ pipeline {
                                     if [ $FAILURES -gt 0 ] || [ $ERRORS -gt 0 ]; then
                                         echo "FAILED TESTS DETAILS:"
                                         echo "==================================="
-                                        grep -A 5 -B 2 "FAILURE\\|ERROR" target/surefire-reports/*.txt || echo "Check test reports for details"
+                                        if ls target/surefire-reports/*.txt 1> /dev/null 2>&1; then
+                                            grep -A 5 -B 2 "FAILURE\\|ERROR" target/surefire-reports/*.txt || echo "Check test reports for details"
+                                        else
+                                            echo "Check test reports for details"
+                                        fi
                                         echo "==================================="
                                     else
                                         echo "ALL TESTS PASSED SUCCESSFULLY!"
