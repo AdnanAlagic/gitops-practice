@@ -13,7 +13,19 @@ pipeline {
     }
 
     triggers {
-        githubPush()
+        GenericTrigger(
+            genericVariables: [
+                [key: 'ref', value: '$.ref'],
+                [key: 'repository_name', value: '$.repository.name'],
+                [key: 'pusher_name', value: '$.pusher.name']
+            ],
+            causeString: 'Triggered by push to $repository_name on branch $ref by $pusher_name',
+            token: 'simple-webapp-trigger',
+            printContributedVariables: true,
+            printPostContent: true,
+            regexFilterText: '$ref',
+            regexFilterExpression: 'refs/heads/master'
+        )
     }
 
     stages {
@@ -63,6 +75,7 @@ EOF
             echo "Successfully pushed images:"
             echo "- ${NEXUS_URL}/${IMAGE_NAME}:${IMAGE_TAG}"
             echo "- ${NEXUS_URL}/${IMAGE_NAME}:latest"
+            echo "Build triggered by: ${env.pusher_name}"
         }
         failure {
             echo "Pipeline failed. Check logs for details."
