@@ -17,55 +17,22 @@ pipeline {
                 deleteDir()
                 git branch: 'master', url: 'https://github.com/AdnanAlagic/simple-springboot-webapp.git'
 
-                sh '''
-                    echo "==================================="
-                    echo "Current commit: $(git log -1 --oneline)"
-                    echo "==================================="
-                '''
+                sh 'echo "Current commit: $(git log -1 --oneline)"'
             }
         }
 
-        stage('Maven Build') {
+        stage('Build & Push Image') {
             steps {
                 sh '''
-                    echo "==================================="
-                    echo "BUILDING WITH MAVEN"
-                    echo "==================================="
-                    mvn clean install -DskipTests -q
-                    echo "✅ Maven build completed"
-                '''
-            }
-        }
+                    echo "Building and pushing image: ${DOCKER_REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}"
 
-        stage('Build Image') {
-            steps {
-                sh '''
-                    echo "==================================="
-                    echo "BUILDING CONTAINER IMAGE"
-                    echo "==================================="
-                    echo "Image: ${DOCKER_REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}"
+                    docker build -t ${DOCKER_REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG} .
+                    docker tag ${DOCKER_REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG} ${DOCKER_REGISTRY}/${IMAGE_NAME}:latest
 
-                    nerdctl build -t ${DOCKER_REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG} .
-                    nerdctl tag ${DOCKER_REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG} ${DOCKER_REGISTRY}/${IMAGE_NAME}:latest
+                    docker push ${DOCKER_REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}
+                    docker push ${DOCKER_REGISTRY}/${IMAGE_NAME}:latest
 
-                    echo "✅ Image built successfully"
-                '''
-            }
-        }
-
-        stage('Push to Registry') {
-            steps {
-                sh '''
-                    echo "==================================="
-                    echo "PUSHING TO NEXUS REGISTRY"
-                    echo "==================================="
-
-                    nerdctl push ${DOCKER_REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}
-                    nerdctl push ${DOCKER_REGISTRY}/${IMAGE_NAME}:latest
-
-                    echo "✅ Images pushed successfully"
-                    echo "📦 Available at: ${DOCKER_REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}"
-                    echo "📦 Available at: ${DOCKER_REGISTRY}/${IMAGE_NAME}:latest"
+                    echo "✅ Image pushed successfully"
                 '''
             }
         }
@@ -73,14 +40,8 @@ pipeline {
         stage('Cleanup') {
             steps {
                 sh '''
-                    echo "==================================="
-                    echo "CLEANING UP LOCAL IMAGES"
-                    echo "==================================="
-
-                    nerdctl rmi ${DOCKER_REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG} || true
-                    nerdctl rmi ${DOCKER_REGISTRY}/${IMAGE_NAME}:latest || true
-
-                    echo "✅ Cleanup completed"
+                    docker rmi ${DOCKER_REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG} || true
+                    docker rmi ${DOCKER_REGISTRY}/${IMAGE_NAME}:latest || true
                 '''
             }
         }
@@ -91,13 +52,7 @@ pipeline {
             deleteDir()
         }
         success {
-            echo '''
-            🎉 BUILD SUCCESSFUL! 🎉
-            ========================
-            Images pushed to registry:
-            • ${DOCKER_REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}
-            • ${DOCKER_REGISTRY}/${IMAGE_NAME}:latest
-            '''
+            echo "🎉 BUILD SUCCESSFUL! Image available at: ${DOCKER_REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}"
         }
         failure {
             echo '❌ BUILD FAILED - Check logs above'
