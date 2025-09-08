@@ -19,7 +19,7 @@ spec:
         - name: nexus-registry-secret
       containers:
         - name: springboot-app
-          image: 152.53.145.17:30082/simple-springboot-webapp:latest
+          image: 152.53.145.17:30082/simple-springboot-webapp:1
           ports:
             - containerPort: 8080
               name: http
