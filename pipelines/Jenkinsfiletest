@@ -1,0 +1,71 @@
+pipeline {
+    agent any
+
+    tools {
+        maven 'Maven-3.9.6'
+    }
+
+    environment {
+        NEXUS_URL = '152.53.145.17:30082'
+        IMAGE_NAME = 'simple-springboot-webapp'
+        IMAGE_TAG = "${BUILD_NUMBER}"
+        APP_REPO = 'https://github.com/AdnanAlagic/simple-springboot-webapp.git'
+    }
+
+    triggers {
+        githubPush()
+    }
+
+    stages {
+        stage('Setup') {
+            steps {
+                sh '''
+                    rm -rf app
+                    # Clone specifically the master branch
+                    git clone -b master ${APP_REPO} app
+                '''
+            }
+        }
+
+        stage('Build') {
+            steps {
+                dir('app') {
+                    sh 'mvn clean package -DskipTests'
+                }
+            }
+        }
+
+        stage('Package & Deploy') {
+            steps {
+                dir('app') {
+                    sh '''
+                        apt-get update && apt-get install -y buildah
+                        mkdir -p /etc/containers
+                        cat > /etc/containers/registries.conf << EOF
+[registries.insecure]
+registries = ['${NEXUS_URL}']
+EOF
+
+                        echo "admin123" | buildah login --username admin --password-stdin ${NEXUS_URL}
+                        buildah bud --isolation=chroot -t ${NEXUS_URL}/${IMAGE_NAME}:${IMAGE_TAG} .
+
+                        buildah push --tls-verify=false ${NEXUS_URL}/${IMAGE_NAME}:${IMAGE_TAG}
+                        buildah tag ${NEXUS_URL}/${IMAGE_NAME}:${IMAGE_TAG} ${NEXUS_URL}/${IMAGE_NAME}:latest
+                        buildah push --tls-verify=false ${NEXUS_URL}/${IMAGE_NAME}:latest
+                    '''
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo "Successfully pushed images:"
+            echo "- ${NEXUS_URL}/${IMAGE_NAME}:${IMAGE_TAG}"
+            echo "- ${NEXUS_URL}/${IMAGE_NAME}:latest"
+        }
+        failure {
+            echo "Pipeline failed. Check logs for details."
+        }
+    }
+}
