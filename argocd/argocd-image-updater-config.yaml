@@ -12,4 +12,3 @@ data:
       api_url: http://152.53.145.17:30082
       ping: yes
       insecure: yes
-      credentials: secret:argocd/nexus-registry-creds#username,secret:argocd/nexus-registry-creds#password
