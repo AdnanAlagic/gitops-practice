@@ -1,12 +1,8 @@
 pipeline {
     agent any
 
-    tools {
-        maven 'Maven-3.8'
-    }
-
     environment {
-        DOCKER_REGISTRY = '152.53.145.17:30082'
+        NEXUS_URL = '152.53.145.17:30082'
         IMAGE_NAME = 'simple-springboot-webapp'
         IMAGE_TAG = "${BUILD_NUMBER}"
     }
@@ -14,48 +10,60 @@ pipeline {
     stages {
         stage('Checkout') {
             steps {
-                deleteDir()
-                git branch: 'master', url: 'https://github.com/AdnanAlagic/simple-springboot-webapp.git'
-
-                sh 'echo "Current commit: $(git log -1 --oneline)"'
+                checkout scm
             }
         }
 
-        stage('Build & Push Image') {
+        stage('Build Application') {
             steps {
-                sh '''
-                    echo "Building and pushing image: ${DOCKER_REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}"
+                sh 'mvn clean package -DskipTests'
+            }
+        }
 
-                    docker build -t ${DOCKER_REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG} .
-                    docker tag ${DOCKER_REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG} ${DOCKER_REGISTRY}/${IMAGE_NAME}:latest
+        stage('Build Docker Image') {
+            steps {
+                script {
+                    sh """
+                        docker build -t ${IMAGE_NAME}:${IMAGE_TAG} .
+                        docker tag ${IMAGE_NAME}:${IMAGE_TAG} ${NEXUS_URL}/${IMAGE_NAME}:${IMAGE_TAG}
+                        docker tag ${IMAGE_NAME}:${IMAGE_TAG} ${NEXUS_URL}/${IMAGE_NAME}:latest
+                    """
+                }
+            }
+        }
 
-                    docker push ${DOCKER_REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}
-                    docker push ${DOCKER_REGISTRY}/${IMAGE_NAME}:latest
-
-                    echo "✅ Image pushed successfully"
-                '''
+        stage('Push to Nexus') {
+            steps {
+                script {
+                    sh """
+                        docker push ${NEXUS_URL}/${IMAGE_NAME}:${IMAGE_TAG}
+                        docker push ${NEXUS_URL}/${IMAGE_NAME}:latest
+                    """
+                }
             }
         }
 
         stage('Cleanup') {
             steps {
-                sh '''
-                    docker rmi ${DOCKER_REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG} || true
-                    docker rmi ${DOCKER_REGISTRY}/${IMAGE_NAME}:latest || true
-                '''
+                sh """
+                    docker rmi ${IMAGE_NAME}:${IMAGE_TAG} || true
+                    docker rmi ${NEXUS_URL}/${IMAGE_NAME}:${IMAGE_TAG} || true
+                    docker rmi ${NEXUS_URL}/${IMAGE_NAME}:latest || true
+                """
             }
         }
     }
 
     post {
         always {
-            deleteDir()
+            cleanWs()
         }
         success {
-            echo "🎉 BUILD SUCCESSFUL! Image available at: ${DOCKER_REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}"
+            echo "Pipeline completed successfully!"
+            echo "Image pushed to: ${NEXUS_URL}/${IMAGE_NAME}:${IMAGE_TAG}"
         }
         failure {
-            echo '❌ BUILD FAILED - Check logs above'
+            echo "Pipeline failed!"
         }
     }
 }
