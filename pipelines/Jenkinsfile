@@ -13,10 +13,22 @@ pipeline {
     }
 
     stages {
+        stage('Initialize Workspace') {
+            steps {
+                sh '''
+                    git config --global --add safe.directory '*'
+                    git config --global user.email "jenkins@jenkins.local"
+                    git config --global user.name "Jenkins"
+
+                    rm -rf app
+                    mkdir -p app
+                '''
+            }
+        }
+
         stage('Checkout App Repo') {
             steps {
                 script {
-                    deleteDir()
                     dir('app') {
                         sh """
                             git clone ${APP_REPO} .
