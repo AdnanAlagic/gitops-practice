@@ -9,16 +9,12 @@ pipeline {
         NEXUS_URL = '152.53.145.17:30082'
         IMAGE_NAME = 'simple-springboot-webapp'
         IMAGE_TAG = "${BUILD_NUMBER}"
-        APP_REPO = 'https://github.com/AdnanAlagic/simple-springboot-webapp.git' // Replace with your actual repo
+        APP_REPO = 'https://github.com/AdnanAlagic/simple-springboot-webapp.git'
+        BUILDAH_ISOLATION = 'chroot'
+        STORAGE_DRIVER = 'vfs'
     }
 
     stages {
-        stage('Checkout GitOps Repo') {
-            steps {
-                checkout scm
-            }
-        }
-
         stage('Checkout App Repo') {
             steps {
                 dir('app') {
@@ -35,36 +31,64 @@ pipeline {
             }
         }
 
-        stage('Build Docker Image') {
+        stage('Setup Buildah') {
+            steps {
+                sh '''
+                    if ! command -v buildah &> /dev/null; then
+                        echo "Installing buildah..."
+                        apt-get update
+                        apt-get install -y buildah fuse-overlayfs
+                    else
+                        echo "Buildah already installed"
+                        buildah --version
+                    fi
+
+                    mkdir -p /var/lib/containers
+
+                    mkdir -p ~/.config/containers
+                    cat > ~/.config/containers/storage.conf << EOF
+[storage]
+driver = "vfs"
+runroot = "/tmp/containers"
+graphroot = "/var/lib/containers"
+EOF
+                '''
+            }
+        }
+
+        stage('Build and Push Image') {
             steps {
                 dir('app') {
-                    sh """
-                        docker build -t ${IMAGE_NAME}:${IMAGE_TAG} .
-                        docker tag ${IMAGE_NAME}:${IMAGE_TAG} ${NEXUS_URL}/${IMAGE_NAME}:${IMAGE_TAG}
-                        docker tag ${IMAGE_NAME}:${IMAGE_TAG} ${NEXUS_URL}/${IMAGE_NAME}:latest
-                    """
+                    sh '''
+                        export BUILDAH_ISOLATION=chroot
+
+                        echo "Building image with buildah..."
+                        buildah bud --storage-driver=vfs -t ${IMAGE_NAME}:${IMAGE_TAG} .
+
+                        echo "Tagging images for Nexus..."
+                        buildah tag ${IMAGE_NAME}:${IMAGE_TAG} ${NEXUS_URL}/${IMAGE_NAME}:${IMAGE_TAG}
+                        buildah tag ${IMAGE_NAME}:${IMAGE_TAG} ${NEXUS_URL}/${IMAGE_NAME}:latest
+
+                        echo "Listing built images..."
+                        buildah images
+
+                        echo "Pushing to Nexus..."
+                        buildah push --storage-driver=vfs --tls-verify=false ${NEXUS_URL}/${IMAGE_NAME}:${IMAGE_TAG}
+                        buildah push --storage-driver=vfs --tls-verify=false ${NEXUS_URL}/${IMAGE_NAME}:latest
+
+                        echo "Images pushed successfully!"
+                    '''
                 }
             }
         }
 
-        stage('Push to Nexus') {
+        stage('Cleanup Images') {
             steps {
-                script {
-                    sh """
-                        docker push ${NEXUS_URL}/${IMAGE_NAME}:${IMAGE_TAG}
-                        docker push ${NEXUS_URL}/${IMAGE_NAME}:latest
-                    """
-                }
-            }
-        }
-
-        stage('Cleanup') {
-            steps {
-                sh """
-                    docker rmi ${IMAGE_NAME}:${IMAGE_TAG} || true
-                    docker rmi ${NEXUS_URL}/${IMAGE_NAME}:${IMAGE_TAG} || true
-                    docker rmi ${NEXUS_URL}/${IMAGE_NAME}:latest || true
-                """
+                sh '''
+                    buildah rmi ${IMAGE_NAME}:${IMAGE_TAG} || true
+                    buildah rmi ${NEXUS_URL}/${IMAGE_NAME}:${IMAGE_TAG} || true
+                    buildah rmi ${NEXUS_URL}/${IMAGE_NAME}:latest || true
+                '''
             }
         }
     }
@@ -76,9 +100,11 @@ pipeline {
         success {
             echo "Pipeline completed successfully!"
             echo "Image pushed to: ${NEXUS_URL}/${IMAGE_NAME}:${IMAGE_TAG}"
+            echo "Image pushed to: ${NEXUS_URL}/${IMAGE_NAME}:latest"
         }
         failure {
             echo "Pipeline failed!"
+            echo "Check the logs above for details."
         }
     }
 }
