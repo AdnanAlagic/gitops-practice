@@ -9,24 +9,35 @@ pipeline {
         NEXUS_URL = '152.53.145.17:30082'
         IMAGE_NAME = 'simple-springboot-webapp'
         IMAGE_TAG = "${BUILD_NUMBER}"
+        APP_REPO = 'https://github.com/AdnanAlagic/simple-springboot-webapp.git' // Replace with your actual repo
     }
 
     stages {
-        stage('Checkout') {
+        stage('Checkout GitOps Repo') {
             steps {
                 checkout scm
             }
         }
 
+        stage('Checkout App Repo') {
+            steps {
+                dir('app') {
+                    git branch: 'master', url: "${APP_REPO}"
+                }
+            }
+        }
+
         stage('Build Application') {
             steps {
-                sh 'mvn clean package -DskipTests'
+                dir('app') {
+                    sh 'mvn clean package -DskipTests'
+                }
             }
         }
 
         stage('Build Docker Image') {
             steps {
-                script {
+                dir('app') {
                     sh """
                         docker build -t ${IMAGE_NAME}:${IMAGE_TAG} .
                         docker tag ${IMAGE_NAME}:${IMAGE_TAG} ${NEXUS_URL}/${IMAGE_NAME}:${IMAGE_TAG}
