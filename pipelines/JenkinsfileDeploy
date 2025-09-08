@@ -45,8 +45,8 @@ pipeline {
                     echo "==================================="
                     echo "Image: ${DOCKER_REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}"
 
-                    sudo nerdctl build -t ${DOCKER_REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG} .
-                    sudo nerdctl tag ${DOCKER_REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG} ${DOCKER_REGISTRY}/${IMAGE_NAME}:latest
+                    nerdctl build -t ${DOCKER_REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG} .
+                    nerdctl tag ${DOCKER_REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG} ${DOCKER_REGISTRY}/${IMAGE_NAME}:latest
 
                     echo "✅ Image built successfully"
                 '''
@@ -60,8 +60,8 @@ pipeline {
                     echo "PUSHING TO NEXUS REGISTRY"
                     echo "==================================="
 
-                    sudo nerdctl push ${DOCKER_REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}
-                    sudo nerdctl push ${DOCKER_REGISTRY}/${IMAGE_NAME}:latest
+                    nerdctl push ${DOCKER_REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}
+                    nerdctl push ${DOCKER_REGISTRY}/${IMAGE_NAME}:latest
 
                     echo "✅ Images pushed successfully"
                     echo "📦 Available at: ${DOCKER_REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}"
@@ -77,8 +77,8 @@ pipeline {
                     echo "CLEANING UP LOCAL IMAGES"
                     echo "==================================="
 
-                    sudo nerdctl rmi ${DOCKER_REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG} || true
-                    sudo nerdctl rmi ${DOCKER_REGISTRY}/${IMAGE_NAME}:latest || true
+                    nerdctl rmi ${DOCKER_REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG} || true
+                    nerdctl rmi ${DOCKER_REGISTRY}/${IMAGE_NAME}:latest || true
 
                     echo "✅ Cleanup completed"
                 '''
