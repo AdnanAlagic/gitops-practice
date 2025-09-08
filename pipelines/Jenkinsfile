@@ -13,33 +13,16 @@ pipeline {
     }
 
     stages {
-        stage('Initialize Workspace') {
+        stage('Setup') {
             steps {
                 sh '''
-                    git config --global --add safe.directory '*'
-                    git config --global user.email "jenkins@jenkins.local"
-                    git config --global user.name "Jenkins"
-
                     rm -rf app
-                    mkdir -p app
+                    git clone ${APP_REPO} app
                 '''
             }
         }
 
-        stage('Checkout App Repo') {
-            steps {
-                script {
-                    dir('app') {
-                        sh """
-                            git clone ${APP_REPO} .
-                            git checkout master || git checkout main
-                        """
-                    }
-                }
-            }
-        }
-
-        stage('Build Application') {
+        stage('Build') {
             steps {
                 dir('app') {
                     sh 'mvn clean package -DskipTests'
@@ -47,29 +30,25 @@ pipeline {
             }
         }
 
-        stage('Build and Push Image') {
+        stage('Package & Deploy') {
             steps {
                 dir('app') {
                     sh '''
                         apt-get update && apt-get install -y buildah
-
                         mkdir -p /etc/containers
                         cat > /etc/containers/registries.conf << EOF
-[registries.search]
-registries = ['docker.io']
 [registries.insecure]
 registries = ['${NEXUS_URL}']
 EOF
 
+
                         echo "admin123" | buildah login --username admin --password-stdin ${NEXUS_URL}
-
                         buildah bud --isolation=chroot -t ${NEXUS_URL}/${IMAGE_NAME}:${IMAGE_TAG} .
-                        buildah push --tls-verify=false ${NEXUS_URL}/${IMAGE_NAME}:${IMAGE_TAG}
 
+
+                        buildah push --tls-verify=false ${NEXUS_URL}/${IMAGE_NAME}:${IMAGE_TAG}
                         buildah tag ${NEXUS_URL}/${IMAGE_NAME}:${IMAGE_TAG} ${NEXUS_URL}/${IMAGE_NAME}:latest
                         buildah push --tls-verify=false ${NEXUS_URL}/${IMAGE_NAME}:latest
-
-                        echo "SUCCESS: Images pushed to Nexus!"
                     '''
                 }
             }
@@ -78,7 +57,7 @@ EOF
 
     post {
         success {
-            echo "Images available at:"
+            echo "Successfully pushed images:"
             echo "- ${NEXUS_URL}/${IMAGE_NAME}:${IMAGE_TAG}"
             echo "- ${NEXUS_URL}/${IMAGE_NAME}:latest"
         }

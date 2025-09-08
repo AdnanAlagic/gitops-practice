@@ -3,16 +3,11 @@ kind: Application
 metadata:
   name: springboot-webapp
   namespace: argocd
-  labels:
-    app: springboot-webapp
   annotations:
     argocd-image-updater.argoproj.io/image-list: springboot-app=152.53.145.17:30082/simple-springboot-webapp:latest
-    argocd-image-updater.argoproj.io/write-back-method: git
-    argocd-image-updater.argoproj.io/git-branch: main
+    argocd-image-updater.argoproj.io/write-back-method: argocd
     argocd-image-updater.argoproj.io/springboot-app.force-update: "true"
-    argocd-image-updater.argoproj.io/springboot-app.update-strategy: latest
-    argocd-image-updater.argoproj.io/springboot-app.pull-secret: secret:springboot-app/nexus-registry-secret
-    argocd-image-updater.argoproj.io/springboot-app.kustomize.image-name: 152.53.145.17:30082/simple-springboot-webapp
+    argocd-image-updater.argoproj.io/springboot-app.update-strategy: newest-build
 spec:
   project: default
   source:
@@ -29,5 +24,3 @@ spec:
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
-      - ServerSideApply=true
-  revisionHistoryLimit: 3
