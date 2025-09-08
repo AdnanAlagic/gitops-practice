@@ -1,0 +1,24 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: springboot-webapp
+  namespace: argocd
+  labels:
+    app: springboot-webapp
+spec:
+  project: default
+  source:
+    repoURL: 'https://github.com/AdnanAlagic/gitops-practice'
+    path: springboot-app
+    targetRevision: HEAD
+  destination:
+    server: 'https://kubernetes.default.svc'
+    namespace: springboot-app
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+  revisionHistoryLimit: 3
