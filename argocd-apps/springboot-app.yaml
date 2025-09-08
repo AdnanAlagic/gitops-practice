@@ -5,6 +5,9 @@ metadata:
   namespace: argocd
   labels:
     app: springboot-webapp
+  annotations:
+    argocd-image-updater.argoproj.io/image-list: app=152.53.145.17:30082/simple-springboot-webapp:latest
+    argocd-image-updater.argoproj.io/write-back-method: argocd
 spec:
   project: default
   source:
