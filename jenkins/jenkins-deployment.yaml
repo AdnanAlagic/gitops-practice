@@ -15,9 +15,15 @@ spec:
       labels:
         app: jenkins
     spec:
+      securityContext:
+        runAsUser: 0
+        fsGroup: 0
       containers:
         - name: jenkins
           image: jenkins/jenkins:lts
+          securityContext:
+            privileged: true
+            runAsUser: 0
           ports:
             - containerPort: 8080
               name: http
@@ -37,7 +43,11 @@ spec:
           volumeMounts:
             - name: jenkins-storage
               mountPath: /var/jenkins_home
+            - name: containers-storage
+              mountPath: /var/lib/containers
       volumes:
         - name: jenkins-storage
           persistentVolumeClaim:
             claimName: jenkins-pvc
+        - name: containers-storage
+          emptyDir: {}
