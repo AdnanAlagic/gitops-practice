@@ -12,12 +12,14 @@ metadata:
     argocd-image-updater.argoproj.io/springboot-app.force-update: "true"
     argocd-image-updater.argoproj.io/springboot-app.update-strategy: latest
     argocd-image-updater.argoproj.io/springboot-app.pull-secret: secret:springboot-app/nexus-registry-secret
+    argocd-image-updater.argoproj.io/springboot-app.kustomize.image-name: 152.53.145.17:30082/simple-springboot-webapp
 spec:
   project: default
   source:
     repoURL: 'https://github.com/AdnanAlagic/gitops-practice'
     path: springboot-app
     targetRevision: HEAD
+    kustomize: {}
   destination:
     server: 'https://kubernetes.default.svc'
     namespace: springboot-app
