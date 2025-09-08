@@ -12,44 +12,15 @@ pipeline {
     stages {
         stage('Setup') {
             steps {
-                echo "Setting up workspace for testing..."
-                sh '''
-                    rm -rf app
-                    git clone ${APP_REPO} app
-                '''
-                echo "Repository cloned successfully"
+                sh 'rm -rf app && git clone ${APP_REPO} app'
             }
         }
 
-        stage('Run Tests') {
-            steps {
-                echo "Starting unit tests execution..."
-                dir('app') {
-                    sh '''
-                        echo "Running Maven tests..."
-                        mvn clean test
-                    '''
-                }
-                echo "Unit tests completed successfully"
-            }
-        }
-
-        stage('Test Results') {
+        stage('Test') {
             steps {
                 dir('app') {
-                    echo "Publishing test results..."
-                    junit testResults: 'target/surefire-reports/*.xml'
-
-                    sh '''
-                        echo "Test Summary:"
-                        echo "============="
-                        if [ -d "target/surefire-reports" ]; then
-                            echo "Test reports generated in target/surefire-reports/"
-                            find target/surefire-reports -name "*.xml" -exec basename {} \\; | sort
-                        else
-                            echo "No test reports found"
-                        fi
-                    '''
+                    sh 'mvn clean test'
+                    junit 'target/surefire-reports/*.xml'
                 }
             }
         }
@@ -57,21 +28,9 @@ pipeline {
 
     post {
         always {
-            echo "Test execution finished"
             dir('app') {
                 archiveArtifacts artifacts: 'target/surefire-reports/**/*', allowEmptyArchive: true
             }
-        }
-        success {
-            echo "All tests passed successfully!"
-            echo "Test artifacts archived and available in Jenkins"
-        }
-        failure {
-            echo "Some tests failed"
-            echo "Check the test reports for detailed failure information"
-        }
-        unstable {
-            echo "Tests completed but some may be unstable"
         }
     }
 }
