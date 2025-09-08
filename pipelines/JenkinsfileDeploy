@@ -10,22 +10,18 @@ pipeline {
         IMAGE_NAME = 'simple-springboot-webapp'
         IMAGE_TAG = "${BUILD_NUMBER}"
         APP_REPO = 'https://github.com/AdnanAlagic/simple-springboot-webapp.git'
-        BUILDAH_ISOLATION = 'chroot'
-        STORAGE_DRIVER = 'vfs'
     }
 
     stages {
         stage('Checkout App Repo') {
             steps {
-                dir('app') {
-                    script {
-
-                        try {
-                            git branch: 'master', url: "${APP_REPO}"
-                        } catch (Exception e) {
-                            echo "Master branch not found, trying main branch..."
-                            git branch: 'main', url: "${APP_REPO}"
-                        }
+                script {
+                    deleteDir()
+                    dir('app') {
+                        sh """
+                            git clone ${APP_REPO} .
+                            git checkout master || git checkout main
+                        """
                     }
                 }
             }
@@ -39,88 +35,40 @@ pipeline {
             }
         }
 
-        stage('Setup Buildah') {
-            steps {
-                sh '''
-
-                    if ! command -v buildah &> /dev/null; then
-                        echo "Installing buildah..."
-                        apt-get update
-                        apt-get install -y buildah fuse-overlayfs
-                    else
-                        echo "Buildah already installed"
-                        buildah --version
-                    fi
-
-                    # Create containers directory
-                    mkdir -p /var/lib/containers
-
-                    # Configure buildah storage
-                    mkdir -p ~/.config/containers
-                    cat > ~/.config/containers/storage.conf << EOF
-[storage]
-driver = "vfs"
-runroot = "/tmp/containers"
-graphroot = "/var/lib/containers"
-EOF
-                '''
-            }
-        }
-
         stage('Build and Push Image') {
             steps {
                 dir('app') {
                     sh '''
+                        apt-get update && apt-get install -y buildah
 
-                        export BUILDAH_ISOLATION=chroot
+                        mkdir -p /etc/containers
+                        cat > /etc/containers/registries.conf << EOF
+[registries.search]
+registries = ['docker.io']
+[registries.insecure]
+registries = ['${NEXUS_URL}']
+EOF
 
-                        echo "Building image with buildah..."
-                        buildah bud --storage-driver=vfs -t ${IMAGE_NAME}:${IMAGE_TAG} .
+                        echo "admin123" | buildah login --username admin --password-stdin ${NEXUS_URL}
 
+                        buildah bud --isolation=chroot -t ${NEXUS_URL}/${IMAGE_NAME}:${IMAGE_TAG} .
+                        buildah push --tls-verify=false ${NEXUS_URL}/${IMAGE_NAME}:${IMAGE_TAG}
 
-                        echo "Tagging images for Nexus..."
-                        buildah tag ${IMAGE_NAME}:${IMAGE_TAG} ${NEXUS_URL}/${IMAGE_NAME}:${IMAGE_TAG}
-                        buildah tag ${IMAGE_NAME}:${IMAGE_TAG} ${NEXUS_URL}/${IMAGE_NAME}:latest
+                        buildah tag ${NEXUS_URL}/${IMAGE_NAME}:${IMAGE_TAG} ${NEXUS_URL}/${IMAGE_NAME}:latest
+                        buildah push --tls-verify=false ${NEXUS_URL}/${IMAGE_NAME}:latest
 
-
-                        echo "Listing built images..."
-                        buildah images
-
-
-                        echo "Pushing to Nexus..."
-                        buildah push --storage-driver=vfs --tls-verify=false ${NEXUS_URL}/${IMAGE_NAME}:${IMAGE_TAG}
-                        buildah push --storage-driver=vfs --tls-verify=false ${NEXUS_URL}/${IMAGE_NAME}:latest
-
-                        echo "Images pushed successfully!"
+                        echo "SUCCESS: Images pushed to Nexus!"
                     '''
                 }
-            }
-        }
-
-        stage('Cleanup Images') {
-            steps {
-                sh '''
-
-                    buildah rmi ${IMAGE_NAME}:${IMAGE_TAG} || true
-                    buildah rmi ${NEXUS_URL}/${IMAGE_NAME}:${IMAGE_TAG} || true
-                    buildah rmi ${NEXUS_URL}/${IMAGE_NAME}:latest || true
-                '''
             }
         }
     }
 
     post {
-        always {
-            deleteDir()
-        }
         success {
-            echo "Pipeline completed successfully!"
-            echo "Image pushed to: ${NEXUS_URL}/${IMAGE_NAME}:${IMAGE_TAG}"
-            echo "Image pushed to: ${NEXUS_URL}/${IMAGE_NAME}:latest"
-        }
-        failure {
-            echo "Pipeline failed!"
-            echo "Check the logs above for details."
+            echo "Images available at:"
+            echo "- ${NEXUS_URL}/${IMAGE_NAME}:${IMAGE_TAG}"
+            echo "- ${NEXUS_URL}/${IMAGE_NAME}:latest"
         }
     }
 }
