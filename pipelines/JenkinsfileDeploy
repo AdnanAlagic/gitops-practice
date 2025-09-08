@@ -1,0 +1,219 @@
+pipeline {
+    agent any
+
+    tools {
+        maven 'Maven-3.8'
+    }
+
+    environment {
+        DOCKER_REGISTRY = 'http://152.53.145.17:30082'
+        IMAGE_NAME = 'simple-springboot-webapp'
+        IMAGE_TAG = "${BUILD_NUMBER}"
+        FULL_IMAGE_NAME = "${DOCKER_REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}"
+        LATEST_IMAGE_NAME = "${DOCKER_REGISTRY}/${IMAGE_NAME}:latest"
+
+        GIT_REPO = 'https://github.com/AdnanAlagic/simple-springboot-webapp.git'
+        GIT_BRANCH = 'master'
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                script {
+                    echo 'Cleaning workspace and checking out repository...'
+                    deleteDir()
+                    git branch: "${GIT_BRANCH}",
+                        url: "${GIT_REPO}"
+                    echo 'Repository checked out successfully'
+
+                    sh '''
+                        echo "Current commit:"
+                        git log -1 --oneline
+                        echo "Branch: $(git branch --show-current)"
+                    '''
+                }
+            }
+        }
+
+        stage('Maven Clean Install') {
+            steps {
+                echo 'Running Maven clean install...'
+                sh '''
+                    echo "==================================="
+                    echo "ENVIRONMENT INFORMATION"
+                    echo "==================================="
+                    echo "Java version:"
+                    java -version
+                    echo ""
+                    echo "Maven version:"
+                    mvn -version
+                    echo ""
+
+                    echo "==================================="
+                    echo "MAVEN CLEAN INSTALL"
+                    echo "==================================="
+                    mvn clean install -DskipTests \
+                        -Dmaven.compiler.source=21 \
+                        -Dmaven.compiler.target=21
+                '''
+                echo 'Maven clean install completed successfully'
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                script {
+                    echo "==================================="
+                    echo "BUILDING DOCKER IMAGE"
+                    echo "==================================="
+                    echo "Image: ${FULL_IMAGE_NAME}"
+                    echo "Latest: ${LATEST_IMAGE_NAME}"
+                    echo "==================================="
+
+                    sh '''
+                        echo "Building Docker image..."
+                        docker build -t ${FULL_IMAGE_NAME} .
+                        docker tag ${FULL_IMAGE_NAME} ${LATEST_IMAGE_NAME}
+
+                        echo "Docker images built successfully:"
+                        docker images | grep ${IMAGE_NAME}
+                    '''
+                }
+            }
+        }
+
+        stage('Test Docker Image') {
+            steps {
+                script {
+                    echo "==================================="
+                    echo "TESTING DOCKER IMAGE"
+                    echo "==================================="
+
+                    sh '''
+                        echo "Starting container for testing..."
+                        CONTAINER_ID=$(docker run -d -p 8090:8080 ${FULL_IMAGE_NAME})
+                        echo "Container started: $CONTAINER_ID"
+
+                        echo "Waiting for application to start..."
+                        sleep 30
+
+                        echo "Testing application health..."
+                        if curl -f http://localhost:8090/ || curl -f http://localhost:8090/actuator/health; then
+                            echo "✅ Application is responding correctly"
+                            TEST_RESULT=0
+                        else
+                            echo "❌ Application health check failed"
+                            TEST_RESULT=1
+                        fi
+
+                        echo "Stopping test container..."
+                        docker stop $CONTAINER_ID
+                        docker rm $CONTAINER_ID
+
+                        exit $TEST_RESULT
+                    '''
+                }
+            }
+        }
+
+        stage('Push to Nexus Registry') {
+            steps {
+                script {
+                    echo "==================================="
+                    echo "PUSHING TO NEXUS REGISTRY"
+                    echo "==================================="
+
+                    sh '''
+                        echo "Pushing Docker image to Nexus registry..."
+
+                        # Push versioned image
+                        echo "Pushing: ${FULL_IMAGE_NAME}"
+                        docker push ${FULL_IMAGE_NAME}
+
+                        # Push latest image
+                        echo "Pushing: ${LATEST_IMAGE_NAME}"
+                        docker push ${LATEST_IMAGE_NAME}
+
+                        echo "✅ Images pushed successfully to Nexus registry"
+                    '''
+                }
+            }
+        }
+
+        stage('Cleanup Local Images') {
+            steps {
+                script {
+                    echo "==================================="
+                    echo "CLEANING UP LOCAL IMAGES"
+                    echo "==================================="
+
+                    sh '''
+                        echo "Removing local Docker images to save space..."
+                        docker rmi ${FULL_IMAGE_NAME} || true
+                        docker rmi ${LATEST_IMAGE_NAME} || true
+                        docker image prune -f
+
+                        echo "Local cleanup completed"
+                    '''
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            echo 'Pipeline completed - cleaning workspace...'
+            script {
+                if (fileExists('target/*.jar')) {
+                    archiveArtifacts artifacts: 'target/*.jar', allowEmptyArchive: true
+                }
+
+                deleteDir()
+            }
+        }
+        success {
+            echo '''
+            ================================================================
+            🎉 PIPELINE COMPLETED SUCCESSFULLY! 🎉
+            ================================================================
+            Your Spring Boot application has been successfully:
+            • Built and tested with Maven
+            • Containerized with Docker
+            • Pushed to Nexus registry
+            ================================================================
+            '''
+
+            script {
+                echo "📦 Docker Images Available:"
+                echo "• ${FULL_IMAGE_NAME}"
+                echo "• ${LATEST_IMAGE_NAME}"
+            }
+        }
+        failure {
+            echo '''
+            ================================================================
+            ❌ PIPELINE FAILED! ❌
+            ================================================================
+            Please check the logs above for detailed error information.
+            Common issues to check:
+            • Maven compilation errors
+            • Unit test failures
+            • Docker build issues
+            • Registry connectivity problems
+            ================================================================
+            '''
+        }
+        unstable {
+            echo '''
+            ================================================================
+            ⚠️  PIPELINE UNSTABLE! ⚠️
+            ================================================================
+            The build completed but some tests failed.
+            • Check test results in Jenkins UI
+            • Review failed test details
+            • Docker image was still built and pushed
+            ================================================================
+            '''
+        }
+    }
+}
