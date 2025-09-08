@@ -2,127 +2,54 @@ pipeline {
     agent any
 
     tools {
-        maven 'Maven-3.8'
+        maven 'Maven-3.9.6'
+    }
+
+    environment {
+        APP_REPO = 'https://github.com/AdnanAlagic/simple-springboot-webapp.git'
     }
 
     stages {
-        stage('Checkout') {
+        stage('Setup') {
             steps {
-                script {
-                    deleteDir()
-                    git branch: 'master',
-                        url: 'https://github.com/AdnanAlagic/unit-testing-java.git'
-                    echo 'Repository checked out successfully'
-                }
-            }
-        }
-
-        stage('Maven Clean Install') {
-            steps {
-                echo 'Running mvn clean install...'
+                echo "Setting up workspace for testing..."
                 sh '''
-                    echo "Java version:"
-                    java -version
-                    echo "Maven version:"
-                    mvn -version
-                    mvn clean install -DskipTests -Dmaven.compiler.source=11 -Dmaven.compiler.target=11
+                    rm -rf app
+                    git clone ${APP_REPO} app
                 '''
-                echo 'Maven clean install completed'
+                echo "Repository cloned successfully"
             }
         }
 
-        stage('Maven Test') {
+        stage('Run Tests') {
             steps {
-                echo 'Running mvn test...'
-                script {
-                    def jvmArgs = [
-                        '--add-opens=java.base/java.lang=ALL-UNNAMED',
-                        '--add-opens=java.base/java.lang.reflect=ALL-UNNAMED',
-                        '--add-opens=java.base/java.util=ALL-UNNAMED',
-                        '--add-opens=java.base/sun.reflect.annotation=ALL-UNNAMED'
-                    ].join(' ')
-
-                    def testResult = sh(
-                        script: """
-                            export MAVEN_OPTS="${jvmArgs}"
-                            mvn test -Dmaven.compiler.source=11 -Dmaven.compiler.target=11 \
-                                -Dargline="${jvmArgs}"
-                        """,
-                        returnStatus: true
-                    )
-
-                    if (testResult == 0) {
-                        echo 'All tests PASSED!'
-                    } else {
-                        echo 'Some tests FAILED!'
-                        currentBuild.result = 'UNSTABLE'
-                    }
+                echo "Starting unit tests execution..."
+                dir('app') {
+                    sh '''
+                        echo "Running Maven tests..."
+                        mvn clean test
+                    '''
                 }
+                echo "Unit tests completed successfully"
             }
-            post {
-                always {
-                    echo 'Publishing test results...'
+        }
 
-                    junit(
-                        testResults: 'target/surefire-reports/*.xml',
-                        allowEmptyResults: true
-                    )
+        stage('Test Results') {
+            steps {
+                dir('app') {
+                    echo "Publishing test results..."
+                    junit testResults: 'target/surefire-reports/*.xml'
 
-                    script {
-                        if (fileExists('target/surefire-reports/')) {
-                            echo 'TEST RESULTS SUMMARY:'
-                            sh '''
-                                echo "==================================="
-                                echo "DETAILED TEST RESULTS:"
-                                echo "==================================="
-
-                                if ls target/surefire-reports/TEST-*.xml 1> /dev/null 2>&1; then
-                                    TOTAL_TESTS=$(grep -h "tests=" target/surefire-reports/TEST-*.xml | sed 's/.*tests="\\([0-9]*\\)".*/\\1/' | awk '{sum+=$1} END {print sum+0}')
-
-                                    FAILURES=$(grep -h "failures=" target/surefire-reports/TEST-*.xml | sed 's/.*failures="\\([0-9]*\\)".*/\\1/' | awk '{sum+=$1} END {print sum+0}')
-
-                                    ERRORS=$(grep -h "errors=" target/surefire-reports/TEST-*.xml | sed 's/.*errors="\\([0-9]*\\)".*/\\1/' | awk '{sum+=$1} END {print sum+0}')
-
-                                    SKIPPED=$(grep -h "skipped=" target/surefire-reports/TEST-*.xml | sed 's/.*skipped="\\([0-9]*\\)".*/\\1/' | awk '{sum+=$1} END {print sum+0}')
-
-                                    PASSED=$((TOTAL_TESTS - FAILURES - ERRORS - SKIPPED))
-
-                                    echo "Total Tests: $TOTAL_TESTS"
-                                    echo "Passed: $PASSED"
-                                    echo "Failed: $FAILURES"
-                                    echo "Errors: $ERRORS"
-                                    echo "Skipped: $SKIPPED"
-                                    echo "==================================="
-
-                                    if [ $FAILURES -gt 0 ] || [ $ERRORS -gt 0 ]; then
-                                        echo "FAILED TESTS DETAILS:"
-                                        echo "==================================="
-                                        if ls target/surefire-reports/*.txt 1> /dev/null 2>&1; then
-                                            grep -A 5 -B 2 "FAILURE\\|ERROR" target/surefire-reports/*.txt || echo "Check test reports for details"
-                                        else
-                                            echo "Check test reports for details"
-                                        fi
-                                        echo "==================================="
-                                    else
-                                        echo "ALL TESTS PASSED SUCCESSFULLY!"
-                                    fi
-                                else
-                                    echo "No test result files found"
-                                fi
-                            '''
-                        } else {
-                            echo 'No test results directory found'
-                        }
-                    }
-                }
-                success {
-                    echo 'Tests completed successfully!'
-                }
-                failure {
-                    echo 'Tests failed with errors!'
-                }
-                unstable {
-                    echo 'Tests completed but some failed!'
+                    sh '''
+                        echo "Test Summary:"
+                        echo "============="
+                        if [ -d "target/surefire-reports" ]; then
+                            echo "Test reports generated in target/surefire-reports/"
+                            find target/surefire-reports -name "*.xml" -exec basename {} \\; | sort
+                        else
+                            echo "No test reports found"
+                        fi
+                    '''
                 }
             }
         }
@@ -130,36 +57,21 @@ pipeline {
 
     post {
         always {
-            echo 'Cleaning workspace...'
-            deleteDir()
+            echo "Test execution finished"
+            dir('app') {
+                archiveArtifacts artifacts: 'target/surefire-reports/**/*', allowEmptyArchive: true
+            }
         }
         success {
-            echo '''
-            ================================
-            PIPELINE COMPLETED SUCCESSFULLY!
-            ================================
-            mvn clean install: PASSED
-            mvn test: PASSED
-            ================================
-            '''
+            echo "All tests passed successfully!"
+            echo "Test artifacts archived and available in Jenkins"
         }
         failure {
-            echo '''
-            ================================
-            PIPELINE FAILED!
-            ================================
-            Check the logs above for details
-            ================================
-            '''
+            echo "Some tests failed"
+            echo "Check the test reports for detailed failure information"
         }
         unstable {
-            echo '''
-            ================================
-            PIPELINE UNSTABLE!
-            ================================
-            Some tests failed - check results
-            ================================
-            '''
+            echo "Tests completed but some may be unstable"
         }
     }
 }
