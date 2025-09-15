@@ -7,6 +7,3 @@ data:
   registries.conf: |
     [registries.insecure]
     registries = ['152.53.145.17:30082']
-
-    [registries.search]
-    registries = ['docker.io', 'quay.io']
