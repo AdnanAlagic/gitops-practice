@@ -45,9 +45,16 @@ spec:
               mountPath: /var/jenkins_home
             - name: containers-storage
               mountPath: /var/lib/containers
+            - name: containers-config
+              mountPath: /etc/containers
+              readOnly: true
       volumes:
         - name: jenkins-storage
           persistentVolumeClaim:
             claimName: jenkins-pvc
         - name: containers-storage
           emptyDir: {}
+        - name: containers-config
+          hostPath:
+            path: /etc/containers
+            type: Directory
