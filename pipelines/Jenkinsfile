@@ -36,6 +36,9 @@ pipeline {
                     sh '''
                         apt-get update && apt-get install -y buildah
 
+                        mkdir -p /etc/containers
+                        cp /etc/containers-custom/registries.conf /etc/containers/registries.conf
+
                         echo "admin123" | buildah login --username admin --password-stdin ${NEXUS_URL}
                         buildah bud --isolation=chroot -t ${NEXUS_URL}/${IMAGE_NAME}:${IMAGE_TAG} .
 

@@ -45,8 +45,8 @@ spec:
               mountPath: /var/jenkins_home
             - name: containers-storage
               mountPath: /var/lib/containers
-            - name: containers-config
-              mountPath: /etc/containers
+            - name: buildah-config
+              mountPath: /etc/containers-custom
               readOnly: true
       volumes:
         - name: jenkins-storage
@@ -54,7 +54,6 @@ spec:
             claimName: jenkins-pvc
         - name: containers-storage
           emptyDir: {}
-        - name: containers-config
-          hostPath:
-            path: /etc/containers
-            type: Directory
+        - name: buildah-config
+          configMap:
+            name: buildah-registries-config
